@@ -7,7 +7,7 @@ Movie::Movie(std::string title, std::string genres) :
   m_title(title),
   m_genres(genres) {/**/}
 
-Movie::Movie(std::string title, std::string genres, std::set<Tag> tags) : 
+Movie::Movie(std::string title, std::string genres, std::set<Tag, std::greater<Tag> > tags) : 
   m_title(title),
   m_genres(genres),
   m_tags(tags) {/**/}

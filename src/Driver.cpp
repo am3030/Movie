@@ -4,6 +4,11 @@
  * - Make database bigger
  * - Sort the set of recommendations by number 
  *   of users who liked it, not alphabetically
+ *   - Change recs to type map<Movie, int> to show how many
+ *     times a movie has been "recommended"
+ *   - May have to overload the > operator for Movie to make
+ *     it easier to get the top recomendations depending on how
+ *     map is implemented in the standard library 
  *************************************************************/
 
 #include <stdlib.h>
@@ -36,10 +41,10 @@ int main(int argc, char *argv[]) {
     sql::PreparedStatement *p_stmt;
     sql::ResultSet *res;    
 
-    set<Movie> recs;
+    set<Movie> recs; 
     string genres = "%";
     string title = argv[1];
-    vector<int> ids;
+    vector<int> ids;    
 
     title += "%";
 

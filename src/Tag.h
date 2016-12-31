@@ -13,7 +13,7 @@ class Tag {
   Tag();
   Tag(std::string tag, double weight);
 
-  bool operator<(const Tag &t) const;
+  bool operator>(const Tag &t) const;
   bool operator==(const Tag &t) const;
   friend std::ostream &operator<<(std::ostream &sout, const Tag &t);
     

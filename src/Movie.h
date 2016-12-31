@@ -13,14 +13,14 @@ class Movie {
   std::string m_genres;
   
   /* tags need to be implemented */
-  std::set<Tag> m_tags;
+  std::set<Tag, std::greater<Tag> > m_tags;
 
  public:
   Movie();
   Movie(std::string title, std::string genres);
 
   /* this constructor isn't being used yet; need to implement tags */
-  Movie(std::string title, std::string genres, std::set<Tag> tags);
+  Movie(std::string title, std::string genres, std::set<Tag, std::greater<Tag> > tags);
   
   std::string get_title() const; 
   std::string get_genres() const;
