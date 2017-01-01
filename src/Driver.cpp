@@ -9,6 +9,7 @@
  *   - May have to overload the > operator for Movie to make
  *     it easier to get the top recomendations depending on how
  *     map is implemented in the standard library 
+ *  - Use TF-IDF to weight the tags
  *************************************************************/
 
 #include <stdlib.h>
