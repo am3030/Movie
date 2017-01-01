@@ -8,7 +8,7 @@ class Tag {
  private:
   std::string m_tag;
   double m_weight;
-  
+   
  public:
   Tag();
   Tag(std::string tag, double weight);

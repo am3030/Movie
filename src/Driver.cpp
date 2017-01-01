@@ -10,11 +10,15 @@
  *     it easier to get the top recomendations depending on how
  *     map is implemented in the standard library 
  *  - Use TF-IDF to weight the tags
+ *  - Clean up the tag table by removing all unique entries
+ *    - If only one person ever gave a movie a tag, it isn't 
+ *      important 
  *************************************************************/
 
 #include <stdlib.h>
 #include <iostream>
 #include <set>
+#include <map>
 
 #include "Movie.h"
 #include "mysql_connection.h"
@@ -46,7 +50,9 @@ int main(int argc, char *argv[]) {
     string genres = "%";
     string title = argv[1];
     vector<int> ids;    
-
+    map<std::string, int> tag_counts;
+    int movieId = 0;
+    
     title += "%";
 
     /* establish connection to movie data database */
@@ -61,13 +67,25 @@ int main(int argc, char *argv[]) {
     res = p_stmt->executeQuery();
     if (res->next()) {
       genres += res->getString("genres");    
+      movieId = res->getInt("movieId");
       genres += "%";
     }
+
     /* if the movie title wasn't found */
     else {
       cout << "No results found for '" << argv[1] << "'" << endl;
       return EXIT_SUCCESS;
     }      
+
+
+    p_stmt = con->prepareStatement("SELECT * FROM tags WHERE movieID=?");
+    p_stmt->setInt(1, movieId);
+    res = p_stmt->executeQuery();
+    while (res->next()) {
+      /* insert the tag if its unique, otherwise increment a count for that tag
+       * may need to use a custom data structure for this although I'm sure that the set can be used */
+      
+    }
     
     /* find which users liked the input movie and store their userIds */
     p_stmt = con->prepareStatement("SELECT * FROM ratings JOIN movies ON ratings.movieId=movies.movieId WHERE title LIKE ? AND rating >= 4.0");
