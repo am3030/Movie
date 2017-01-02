@@ -8,7 +8,13 @@
  *   - May have to overload the > operator for Movie to make
  *     it easier to get the top recomendations depending on how
  *     map is implemented in the standard library 
+ * 
+ *    * DONE, but it doesn't seem relevant to what movies 
+ *      are related. It just shows more popular movies
+ *
  *  - Use TF-IDF to weight the tags
+ *    - First do it in retrieve_tags() to see which tags are
+ *      important to the input movie
  *  - Clean up the tag table by removing all unique entries
  *    - If only one person ever gave a movie a tag, it isn't 
  *      important 
@@ -36,6 +42,32 @@
 
 using namespace std;
 
+/* retrieve_tags() returns a map that pairs all the tags for the movie with id movieId
+ *   in the movie database with their respective counts. 
+ *   doesn't account for stemming yet, only normalizes the case (upper and lower) */
+map<string, int> retrieve_tags(sql::Connection *con, int movieId) {
+  sql::PreparedStatement *p_stmt;
+  sql::ResultSet *res;
+  map<string, int> tag_counts;
+
+  try {
+    p_stmt = con->prepareStatement("SELECT * FROM tags WHERE movieID=?");
+    p_stmt->setInt(1, movieId);
+    res = p_stmt->executeQuery();
+    while (res->next()) {
+      string tag = res->getString("tag");
+      transform(tag.begin(), tag.end(), tag.begin(), ::tolower);
+      if (!(tag_counts.insert(pair<string, int>(tag, 1))).second)
+	tag_counts[tag]++;      
+    }
+  }
+  catch (sql::SQLException &e) {
+    cout << e.what() << endl;
+  }
+
+  return tag_counts;
+}
+
 int main(int argc, char *argv[]) {
   
   /* validate the number of command line arguments */
@@ -51,11 +83,11 @@ int main(int argc, char *argv[]) {
     sql::PreparedStatement *p_stmt;
     sql::ResultSet *res;    
 
-    set<Movie> recs; 
+    map<Movie, int> recs; 
     string genres = "%";
     string title = argv[1];
     vector<int> ids;    
-    map<std::string, int> tag_counts;
+    map<string, int> tag_counts;
     int movieId = 0;
     
     title += "%";
@@ -81,25 +113,11 @@ int main(int argc, char *argv[]) {
       return EXIT_SUCCESS;
     }      
 
+    tag_counts = retrieve_tags(con, movieId);
+    // for (auto t : tag_counts) cout << t.first << ": " << t.second << endl;
 
-    p_stmt = con->prepareStatement("SELECT * FROM tags WHERE movieID=?");
-    p_stmt->setInt(1, movieId);
-    res = p_stmt->executeQuery();
-    while (res->next()) {
-      /* insert the tag if its unique, otherwise increment a count for that tag
-       * may need to use a custom data structure for this although I'm sure that the stl can be used */
-      string tag = res->getString("tag");
-      transform(tag.begin(), tag.end(), tag.begin(), ::tolower);
-      if (!(tag_counts.insert(pair<string, int>(tag, 1))).second)
-	tag_counts[tag]++;
-	
-      // if (find(tag_counts.begin(), tag_counts.end(), res->getString("tag")) != tag_counts.end()) {
-      // 	tag_counts.insert(
-      // }
-    }
-    for (auto t : tag_counts)
-      cout << t.first << ": " << t.second << endl;
-    return 0;
+    // /* temporary */
+    // return 0;
     
     /* find which users liked the input movie and store their userIds */
     p_stmt = con->prepareStatement("SELECT * FROM ratings JOIN movies ON ratings.movieId=movies.movieId WHERE title LIKE ? AND rating >= 4.0");
@@ -126,7 +144,8 @@ int main(int argc, char *argv[]) {
       res = p_stmt->executeQuery();      
       while (res->next()) {
 	unique_ptr<Movie> m(new Movie(res->getString("title"), res->getString("genres")));
-	recs.insert(*m);	
+	if (!(recs.insert(pair<Movie, int>(*m, 1)).second))
+	  recs[*m]++;
       }
     }    
     
@@ -138,7 +157,7 @@ int main(int argc, char *argv[]) {
      */
 
     for (auto m : recs)
-      cout << m << endl;
+      cout << m.first << ": " << m.second << endl;
     
     delete p_stmt;
     delete stmt;
