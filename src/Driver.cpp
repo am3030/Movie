@@ -19,6 +19,7 @@
 #include <iostream>
 #include <set>
 #include <map>
+#include <algorithm>
 
 #include "Movie.h"
 #include "mysql_connection.h"
@@ -60,7 +61,6 @@ int main(int argc, char *argv[]) {
     stmt = con->createStatement();
     stmt->execute("USE movie");
     
-
     /* get the genres for the input movie */
     p_stmt = con->prepareStatement("SELECT * FROM movies WHERE title LIKE ? LIMIT 1");
     p_stmt->setString(1, title);
@@ -83,9 +83,19 @@ int main(int argc, char *argv[]) {
     res = p_stmt->executeQuery();
     while (res->next()) {
       /* insert the tag if its unique, otherwise increment a count for that tag
-       * may need to use a custom data structure for this although I'm sure that the set can be used */
-      
+       * may need to use a custom data structure for this although I'm sure that the stl can be used */
+      string tag = res->getString("tag");
+      transform(tag.begin(), tag.end(), tag.begin(), ::tolower);
+      if (!(tag_counts.insert(pair<string, int>(tag, 1))).second)
+	tag_counts[tag]++;
+	
+      // if (find(tag_counts.begin(), tag_counts.end(), res->getString("tag")) != tag_counts.end()) {
+      // 	tag_counts.insert(
+      // }
     }
+    for (auto t : tag_counts)
+      cout << t.first << ": " << t.second << endl;
+    return 0;
     
     /* find which users liked the input movie and store their userIds */
     p_stmt = con->prepareStatement("SELECT * FROM ratings JOIN movies ON ratings.movieId=movies.movieId WHERE title LIKE ? AND rating >= 4.0");
