@@ -1,8 +1,7 @@
 
 /******************** THINGS TO ADD **************************
  * - Add tags to algorithm
- * - Make database bigger
- * - Sort the set of recommendations by number 
+ * - Sort the set of recommendations by number
  *   of users who liked it, not alphabetically
  *   - Change recs to type map<Movie, int> to show how many
  *     times a movie has been "recommended"
@@ -13,6 +12,11 @@
  *  - Clean up the tag table by removing all unique entries
  *    - If only one person ever gave a movie a tag, it isn't 
  *      important 
+ *    - Stem all of the tags to normalize them
+ *      - Could be done in the database to save time, or
+ *      - Could be done in the Driver so that new tags could 
+ *        be added easily (but at the same time, stemming could
+ *        be done when the tags are added
  *************************************************************/
 
 #include <stdlib.h>
