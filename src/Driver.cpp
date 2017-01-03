@@ -11,14 +11,15 @@
  * 
  *    * DONE, but it doesn't seem relevant to what movies 
  *      are related. It just shows more popular movies
- *
- *  - Use TF-IDF to weight the tags
- *    - First do it in retrieve_tags() to see which tags are
- *      important to the input movie
+ *    
+ *  - May use cosine similarity to compare a set of tags
+ *    - May be costly, but it's probably the best way to compare 
+ *      how similar two sets of tags are
  *  - Consider using the Jaccard similarity instead of TF-IDF
- *  - Clean up the tag table by removing all unique entries
- *    - If only one person ever gave a movie a tag, it isn't 
- *      important 
+ *    - Delete all tags that only one or two people gave
+ *      - If one person just gives a bunch of movies a certain 
+ *        tag, it's not really important because no one else 
+ *        believes that the tag fits the movie either
  *    - Stem all of the tags to normalize them
  *      - Could be done in the database to save time, or
  *      - Could be done in the Driver so that new tags could 
@@ -46,6 +47,11 @@ using namespace std;
 /* retrieve_tags() returns a map that pairs all the tags for the movie with id movieId
  *   in the movie database with their respective counts. 
  *   doesn't account for stemming yet, only normalizes the case (upper and lower) */
+
+bool comp(pair<string, double> a, pair<string, double> b) {
+  return a.second > b.second;
+}
+
 map<string, double> retrieve_tags(sql::Connection *con, int movieId) {
   sql::PreparedStatement *p_stmt;
   sql::ResultSet *res;
@@ -63,12 +69,20 @@ map<string, double> retrieve_tags(sql::Connection *con, int movieId) {
       if (!(tag_counts.insert(pair<string, int>(tag, 1))).second)
 	tag_counts[tag]++;      
     }
-
     /* finds the weight of the tag. The weight needs to be used instead 
      * of the count, because otherwise there would be a bias towards movies
      * that were tagged more frequently i.e. more popular */
     for (auto &a : tag_counts)
       a.second = a.second / total;
+
+    // used to view the tags in decreasing weight
+    // vector<pair<string, double> > disp;
+    // for (auto &a : tag_counts)
+    //   disp.push_back(a);
+    // sort(disp.begin(), disp.end(), comp);
+    // for (auto a : disp)
+    //   cout << a.first << ": " << a.second << endl;
+    // exit(1);
   }
   catch (sql::SQLException &e) {
     cout << e.what() << endl;
