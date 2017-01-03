@@ -33,7 +33,7 @@
 #include <map>
 #include <algorithm>
 
-#include "Movie.h"
+#include "../include/Movie.h"
 #include "mysql_connection.h"
 
 #include <cppconn/driver.h>
@@ -170,14 +170,13 @@ int main(int argc, char *argv[]) {
      * some possible algorithms to use are:
      *   - TF-IDF
      *   - Jaccard Similarity
-     *   - Cosine Similarity
+     *   - Cosine Similarity */
     
     /* prints out 10 recommendations at most - use when algorithm is complete
      * 
      * set<Movie>::iterator it2 = recs.begin();
      * for (int i = 0; it2 != recs.end() && i < 10 ; i++, it2++)
-     *   cout << *it2 << endl;
-     */
+     *   cout << *it2 << endl; */
 
     for (auto m : recs)
       cout << m.first << ": " << m.second << endl;

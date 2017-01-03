@@ -1,5 +1,5 @@
 
-#include "Movie.h"
+#include "../include/Movie.h"
 
 Movie::Movie() : m_title(""), m_genres("") {/**/}
 
