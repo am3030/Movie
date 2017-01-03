@@ -47,17 +47,13 @@ using namespace std;
 /* retrieve_tags() returns a map that pairs all the tags for the movie with id movieId
  *   in the movie database with their respective counts. 
  *   doesn't account for stemming yet, only normalizes the case (upper and lower) */
-
-bool comp(pair<string, double> a, pair<string, double> b) {
-  return a.second > b.second;
-}
-
-map<string, double> retrieve_tags(sql::Connection *con, int movieId) {
+set<Tag, greater<Tag> > retrieve_tags(sql::Connection *con, int movieId) {
   sql::PreparedStatement *p_stmt;
   sql::ResultSet *res;
   map<string, double> tag_counts;
+  set<Tag, greater<Tag> > tags;  
   int total = 0;
-  
+
   try {
     p_stmt = con->prepareStatement("SELECT * FROM tags WHERE movieID=?");
     p_stmt->setInt(1, movieId);
@@ -72,23 +68,17 @@ map<string, double> retrieve_tags(sql::Connection *con, int movieId) {
     /* finds the weight of the tag. The weight needs to be used instead 
      * of the count, because otherwise there would be a bias towards movies
      * that were tagged more frequently i.e. more popular */
-    for (auto &a : tag_counts)
+    for (auto &a : tag_counts) {
       a.second = a.second / total;
-
-    // used to view the tags in decreasing weight
-    // vector<pair<string, double> > disp;
-    // for (auto &a : tag_counts)
-    //   disp.push_back(a);
-    // sort(disp.begin(), disp.end(), comp);
-    // for (auto a : disp)
-    //   cout << a.first << ": " << a.second << endl;
-    // exit(1);
+      tags.insert(Tag(a.first, a.second));
+    }
+    
   }
   catch (sql::SQLException &e) {
     cout << e.what() << endl;
   }
-
-  return tag_counts;
+  
+  return tags;
 }
 
 int main(int argc, char *argv[]) {
@@ -110,7 +100,7 @@ int main(int argc, char *argv[]) {
     string genres = "%";
     string title = argv[1];
     vector<int> ids;    
-    map<string, double> tag_counts;
+    set<Tag, greater<Tag> > tags;
     int movieId = 0;
     
     title += "%";
@@ -120,14 +110,15 @@ int main(int argc, char *argv[]) {
     stmt = con->createStatement();
     stmt->execute("USE movie");
     
-    /* get the genres for the input movie */
+    /* get the data for the input movie */
     p_stmt = con->prepareStatement("SELECT * FROM movies WHERE title LIKE ? LIMIT 1");
     p_stmt->setString(1, title);
     res = p_stmt->executeQuery();
     if (res->next()) {
+      title = res->getString("title");
       genres += res->getString("genres");    
       movieId = res->getInt("movieId");
-      genres += "%";
+      // genres += "%";
     }
 
     /* if the movie title wasn't found */
@@ -135,13 +126,16 @@ int main(int argc, char *argv[]) {
       cout << "No results found for '" << argv[1] << "'" << endl;
       return EXIT_SUCCESS;
     }      
-    
-    tag_counts = retrieve_tags(con, movieId);
-    for (auto t : tag_counts) 
-      cout << t.first << ": " << t.second << endl;
-    return 0;
+
+    /* get the tags for the input movie and create a Movie object for it */
+    tags = retrieve_tags(con, movieId);
+    for (auto t : tags) 
+      cout << t << endl;
+    unique_ptr<Movie> input(new Movie(title, genres, tags));
+    cout << *input << endl;
     
     /* find which users liked the input movie and store their userIds */
+    genres += "%";
     p_stmt = con->prepareStatement("SELECT * FROM ratings JOIN movies ON ratings.movieId=movies.movieId WHERE title LIKE ? AND rating >= 4.0");
     p_stmt->setString(1, title);    
     res = p_stmt->executeQuery();
@@ -165,11 +159,18 @@ int main(int argc, char *argv[]) {
       p_stmt->setString(3, title);
       res = p_stmt->executeQuery();      
       while (res->next()) {
-	unique_ptr<Movie> m(new Movie(res->getString("title"), res->getString("genres")));
+	unique_ptr<Movie> m(new Movie(res->getString("title"), res->getString("genres"), retrieve_tags(con, res->getInt("movieId"))));
 	if (!(recs.insert(pair<Movie, int>(*m, 1)).second))
 	  recs[*m]++;
       }
     }    
+
+
+    /* the final step is to sort all movies based on how close their tags are to the input movies
+     * some possible algorithms to use are:
+     *   - TF-IDF
+     *   - Jaccard Similarity
+     *   - Cosine Similarity
     
     /* prints out 10 recommendations at most - use when algorithm is complete
      * 

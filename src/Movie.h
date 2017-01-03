@@ -10,16 +10,12 @@
 class Movie {
  private:
   std::string m_title;
-  std::string m_genres;
-  
-  /* tags need to be implemented */
+  std::string m_genres; 
   std::set<Tag, std::greater<Tag> > m_tags;
 
  public:
   Movie();
   Movie(std::string title, std::string genres);
-
-  /* this constructor isn't being used yet; need to implement tags */
   Movie(std::string title, std::string genres, std::set<Tag, std::greater<Tag> > tags);
   
   std::string get_title() const; 
