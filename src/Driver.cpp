@@ -46,21 +46,29 @@ using namespace std;
 /* retrieve_tags() returns a map that pairs all the tags for the movie with id movieId
  *   in the movie database with their respective counts. 
  *   doesn't account for stemming yet, only normalizes the case (upper and lower) */
-map<string, int> retrieve_tags(sql::Connection *con, int movieId) {
+map<string, double> retrieve_tags(sql::Connection *con, int movieId) {
   sql::PreparedStatement *p_stmt;
   sql::ResultSet *res;
-  map<string, int> tag_counts;
-
+  map<string, double> tag_counts;
+  int total = 0;
+  
   try {
     p_stmt = con->prepareStatement("SELECT * FROM tags WHERE movieID=?");
     p_stmt->setInt(1, movieId);
     res = p_stmt->executeQuery();
     while (res->next()) {
       string tag = res->getString("tag");
+      total++;
       transform(tag.begin(), tag.end(), tag.begin(), ::tolower);
       if (!(tag_counts.insert(pair<string, int>(tag, 1))).second)
 	tag_counts[tag]++;      
     }
+
+    /* finds the weight of the tag. The weight needs to be used instead 
+     * of the count, because otherwise there would be a bias towards movies
+     * that were tagged more frequently i.e. more popular */
+    for (auto &a : tag_counts)
+      a.second = a.second / total;
   }
   catch (sql::SQLException &e) {
     cout << e.what() << endl;
@@ -88,7 +96,7 @@ int main(int argc, char *argv[]) {
     string genres = "%";
     string title = argv[1];
     vector<int> ids;    
-    map<string, int> tag_counts;
+    map<string, double> tag_counts;
     int movieId = 0;
     
     title += "%";
@@ -113,9 +121,10 @@ int main(int argc, char *argv[]) {
       cout << "No results found for '" << argv[1] << "'" << endl;
       return EXIT_SUCCESS;
     }      
-
+    
     tag_counts = retrieve_tags(con, movieId);
-    for (auto t : tag_counts) cout << t.first << ": " << t.second << endl;
+    for (auto t : tag_counts) 
+      cout << t.first << ": " << t.second << endl;
     return 0;
     
     /* find which users liked the input movie and store their userIds */
