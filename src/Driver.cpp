@@ -15,6 +15,7 @@
  *  - Use TF-IDF to weight the tags
  *    - First do it in retrieve_tags() to see which tags are
  *      important to the input movie
+ *  - Consider using the Jaccard similarity instead of TF-IDF
  *  - Clean up the tag table by removing all unique entries
  *    - If only one person ever gave a movie a tag, it isn't 
  *      important 
@@ -114,10 +115,8 @@ int main(int argc, char *argv[]) {
     }      
 
     tag_counts = retrieve_tags(con, movieId);
-    // for (auto t : tag_counts) cout << t.first << ": " << t.second << endl;
-
-    // /* temporary */
-    // return 0;
+    for (auto t : tag_counts) cout << t.first << ": " << t.second << endl;
+    return 0;
     
     /* find which users liked the input movie and store their userIds */
     p_stmt = con->prepareStatement("SELECT * FROM ratings JOIN movies ON ratings.movieId=movies.movieId WHERE title LIKE ? AND rating >= 4.0");
