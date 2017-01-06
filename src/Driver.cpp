@@ -52,7 +52,7 @@ OutputIterator set_join(InputIterator first1, InputIterator last1,
 {
   while (true) {
     if (first1 == last1) return copy(first2, last2, result);
-    if (first2 == last2) return copy(first2, last2, result);
+    if (first2 == last2) return result;
     
     if (comp(*first1, *first2))
       *first1++;      
