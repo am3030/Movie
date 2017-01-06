@@ -25,6 +25,7 @@
  *      - Could be done in the Driver so that new tags could 
  *        be added easily (but at the same time, stemming could
  *        be done when the tags are added
+ *  - Can use Jaccard Index to find similar genres
  *************************************************************/
 
 #include <stdlib.h>
@@ -43,6 +44,42 @@
 #include <cppconn/prepared_statement.h>
 
 using namespace std;
+
+template <class InputIterator, class OutputIterator, class Compare>
+OutputIterator set_join(InputIterator first1, InputIterator last1, 
+			InputIterator first2, InputIterator last2, 
+			OutputIterator result, Compare comp)
+{
+  while (true) {
+    if (first1 == last1) return copy(first2, last2, result);
+    if (first2 == last2) return copy(first2, last2, result);
+    
+    if (comp(*first1, *first2))
+      *first1++;      
+    /* result has to have a weight of 0; probably have to create a new Tag object
+     * so we don't mess up the second set 
+     *
+     * have to remove InputIterator if we do this to say that this function ONLY accepts
+     * objects of type set<Tag, greater<Tag> >::iterator
+     */
+    else if (comp(*first2 ,*first1))      
+      *result++ = *first2++;
+    else {
+      *first1++; *first2++;
+    }
+  }  
+}
+
+template <class OutputIterator>
+OutputIterator retrieve_genres(string genres, OutputIterator result) {
+  string genre;
+  for (char c : genres) {
+    if (c != '|') genre += c;
+    else { *result++ = genre; genre=""; }  
+  }
+  *result++ = genre;
+  return result;
+}
 
 /* retrieve_tags() returns a map that pairs all the tags for the movie with id movieId
  *   in the movie database with their respective counts. 
@@ -69,7 +106,7 @@ set<Tag, greater<Tag> > retrieve_tags(sql::Connection *con, int movieId) {
      * of the count, because otherwise there would be a bias towards movies
      * that were tagged more frequently i.e. more popular */
     for (auto &a : tag_counts) {
-      a.second = a.second / total;
+      a.second /= total;
       tags.insert(Tag(a.first, a.second));
     }
     
@@ -133,6 +170,9 @@ int main(int argc, char *argv[]) {
       cout << t << endl;
     unique_ptr<Movie> input(new Movie(title, genres, tags));
     cout << *input << endl;
+
+    vector<string> genre_list;
+    retrieve_genres(input->get_genres(), back_inserter(genre_list));
     
     /* find which users liked the input movie and store their userIds */
     genres += "%";
@@ -159,18 +199,21 @@ int main(int argc, char *argv[]) {
       p_stmt->setString(3, title);
       res = p_stmt->executeQuery();      
       while (res->next()) {
+	
 	unique_ptr<Movie> m(new Movie(res->getString("title"), res->getString("genres"), retrieve_tags(con, res->getInt("movieId"))));
-	if (!(recs.insert(pair<Movie, int>(*m, 1)).second))
-	  recs[*m]++;
+	if (!(recs.insert(pair<Movie, int>(*m, 1)).second)) recs[*m]++;			
       }
     }    
+        
+    for (auto s : recs) {
+      set<Tag, greater<Tag> > test_tags = (s->first).get_tags();    
+      set<Tag, greater<Tag> > diffs;
+      set_join(tags.begin(), tags.end(), test_tags.begin(), test_tags.end(), inserter(tags, tags.begin()), greater<Tag>());
+      /* perform cosine similarity here */
+    }      
+      
 
-
-    /* the final step is to sort all movies based on how close their tags are to the input movies
-     * some possible algorithms to use are:
-     *   - TF-IDF
-     *   - Jaccard Similarity
-     *   - Cosine Similarity */
+    /* the final step is to sort all movies based on how close their tags are to the input movies using Cosine Similarity */
     
     /* prints out 10 recommendations at most - use when algorithm is complete
      * 
@@ -178,7 +221,7 @@ int main(int argc, char *argv[]) {
      * for (int i = 0; it2 != recs.end() && i < 10 ; i++, it2++)
      *   cout << *it2 << endl; */
 
-    for (auto m : recs)
+     for (auto m : recs)
       cout << m.first << ": " << m.second << endl;
     
     delete p_stmt;

@@ -12,12 +12,16 @@ Movie::Movie(std::string title, std::string genres, std::set<Tag, std::greater<T
   m_genres(genres),
   m_tags(tags) {/**/}
 
-std::string Movie::get_title() const {
+std::string Movie::get_title(void) const {
   return m_title;
 }
 
-std::string Movie::get_genres() const {
+std::string Movie::get_genres(void) const {
   return m_genres;
+}
+
+std::set<Tag, std::greater<Tag> > Movie::get_tags(void) const {
+  return m_tags;
 }
 
 bool Movie::operator<(const Movie &m) const {
