@@ -28,95 +28,9 @@
  *  - Can use Jaccard Index to find similar genres
  *************************************************************/
 
-#include <stdlib.h>
-#include <iostream>
-#include <set>
-#include <map>
-#include <algorithm>
-
-#include "../include/Movie.h"
-#include "mysql_connection.h"
-
-#include <cppconn/driver.h>
-#include <cppconn/exception.h>
-#include <cppconn/resultset.h>
-#include <cppconn/statement.h>
-#include <cppconn/prepared_statement.h>
+#include "../include/driver_functions.h"
 
 using namespace std;
-
-template <class InputIterator, class OutputIterator, class Compare>
-OutputIterator set_join(InputIterator first1, InputIterator last1, 
-			InputIterator first2, InputIterator last2, 
-			OutputIterator result, Compare comp)
-{
-  while (true) {
-    if (first1 == last1) return copy(first2, last2, result);
-    if (first2 == last2) return result;
-    
-    if (comp(*first1, *first2))
-      *first1++;      
-    /* result has to have a weight of 0; probably have to create a new Tag object
-     * so we don't mess up the second set 
-     *
-     * have to remove InputIterator if we do this to say that this function ONLY accepts
-     * objects of type set<Tag, greater<Tag> >::iterator
-     */
-    else if (comp(*first2 ,*first1))      
-      *result++ = *first2++;
-    else {
-      *first1++; *first2++;
-    }
-  }  
-}
-
-template <class OutputIterator>
-OutputIterator retrieve_genres(string genres, OutputIterator result) {
-  string genre;
-  for (char c : genres) {
-    if (c != '|') genre += c;
-    else { *result++ = genre; genre=""; }  
-  }
-  *result++ = genre;
-  return result;
-}
-
-/* retrieve_tags() returns a map that pairs all the tags for the movie with id movieId
- *   in the movie database with their respective counts. 
- *   doesn't account for stemming yet, only normalizes the case (upper and lower) */
-set<Tag, greater<Tag> > retrieve_tags(sql::Connection *con, int movieId) {
-  sql::PreparedStatement *p_stmt;
-  sql::ResultSet *res;
-  map<string, double> tag_counts;
-  set<Tag, greater<Tag> > tags;  
-  int total = 0;
-
-  try {
-    p_stmt = con->prepareStatement("SELECT * FROM tags WHERE movieID=?");
-    p_stmt->setInt(1, movieId);
-    res = p_stmt->executeQuery();
-    while (res->next()) {
-      string tag = res->getString("tag");
-      total++;
-      transform(tag.begin(), tag.end(), tag.begin(), ::tolower);
-      if (!(tag_counts.insert(pair<string, int>(tag, 1))).second)
-	tag_counts[tag]++;      
-    }
-    /* finds the weight of the tag. The weight needs to be used instead 
-     * of the count, because otherwise there would be a bias towards movies
-     * that were tagged more frequently i.e. more popular */
-    for (auto &a : tag_counts) {
-      a.second /= total;
-      tags.insert(Tag(a.first, a.second));
-    }
-    
-  }
-  catch (sql::SQLException &e) {
-    cout << e.what() << endl;
-  }
-  
-  return tags;
-}
 
 int main(int argc, char *argv[]) {
   
@@ -155,7 +69,6 @@ int main(int argc, char *argv[]) {
       title = res->getString("title");
       genres += res->getString("genres");    
       movieId = res->getInt("movieId");
-      // genres += "%";
     }
 
     /* if the movie title wasn't found */
@@ -164,13 +77,9 @@ int main(int argc, char *argv[]) {
       return EXIT_SUCCESS;
     }      
 
-    /* get the tags for the input movie and create a Movie object for it */
+    /* get the tags and genres for the input movie and create a Movie object for it */
     tags = retrieve_tags(con, movieId);
-    for (auto t : tags) 
-      cout << t << endl;
     unique_ptr<Movie> input(new Movie(title, genres, tags));
-    cout << *input << endl;
-
     vector<string> genre_list;
     retrieve_genres(input->get_genres(), back_inserter(genre_list));
     
@@ -188,8 +97,7 @@ int main(int argc, char *argv[]) {
     for (auto a : ids) {
       p_stmt = con->prepareStatement("SELECT * FROM ratings JOIN movies ON ratings.movieId=movies.movieId WHERE rating >= 4.0 AND userId=? AND genres LIKE ? AND title NOT LIKE ?");
       p_stmt->setInt(1, a);
-      
-      /* replace "|" with a "%" in genres */
+
       for (auto &c : genres)
       	if (c == '|')
       	  c = '%';
@@ -198,29 +106,22 @@ int main(int argc, char *argv[]) {
       p_stmt->setString(2, genres);
       p_stmt->setString(3, title);
       res = p_stmt->executeQuery();      
-      while (res->next()) {
-	
+      while (res->next()) {	
 	unique_ptr<Movie> m(new Movie(res->getString("title"), res->getString("genres"), retrieve_tags(con, res->getInt("movieId"))));
 	if (!(recs.insert(pair<Movie, int>(*m, 1)).second)) recs[*m]++;			
       }
     }    
-        
+      
+
+    /* the final step is to sort all movies based on how close their tags are to the input movies using Cosine Similarity */  
+    /* for each recommendation, compare the tags */
     for (auto s : recs) {
-      set<Tag, greater<Tag> > test_tags = (s->first).get_tags();    
+      set<Tag, greater<Tag> > test_tags = s.first.get_tags();    
       set<Tag, greater<Tag> > diffs;
       set_join(tags.begin(), tags.end(), test_tags.begin(), test_tags.end(), inserter(tags, tags.begin()), greater<Tag>());
       /* perform cosine similarity here */
     }      
-      
-
-    /* the final step is to sort all movies based on how close their tags are to the input movies using Cosine Similarity */
-    
-    /* prints out 10 recommendations at most - use when algorithm is complete
-     * 
-     * set<Movie>::iterator it2 = recs.begin();
-     * for (int i = 0; it2 != recs.end() && i < 10 ; i++, it2++)
-     *   cout << *it2 << endl; */
-
+          
      for (auto m : recs)
       cout << m.first << ": " << m.second << endl;
     
