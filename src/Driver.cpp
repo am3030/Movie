@@ -1,17 +1,5 @@
 
 /******************** THINGS TO ADD **************************
- * - Add tags to algorithm
- * - Sort the set of recommendations by number
- *   of users who liked it, not alphabetically
- *   - Change recs to type map<Movie, int> to show how many
- *     times a movie has been "recommended"
- *   - May have to overload the > operator for Movie to make
- *     it easier to get the top recomendations depending on how
- *     map is implemented in the standard library 
- * 
- *    * DONE, but it doesn't seem relevant to what movies 
- *      are related. It just shows more popular movies
- *    
  *  - May use cosine similarity to compare a set of tags
  *    - May be costly, but it's probably the best way to compare 
  *      how similar two sets of tags are
@@ -25,7 +13,6 @@
  *      - Could be done in the Driver so that new tags could 
  *        be added easily (but at the same time, stemming could
  *        be done when the tags are added
- *  - Can use Jaccard Index to find similar genres
  *************************************************************/
 
 #include "../include/driver_functions.h"
@@ -59,6 +46,8 @@ int main(int argc, char *argv[]) {
     set<Tag, greater<Tag> > tags;
     int movieId = 0;
     
+    /* this is so that when the title is looked up in the database, it'll return a result even if 
+     * the year of the movie isn't included (which normal people wouldn't type in) */
     title += "%";
 
     /* establish connection to movie data database */
@@ -67,7 +56,7 @@ int main(int argc, char *argv[]) {
     stmt->execute("USE movie");
     
     /* get the data for the input movie */
-    p_stmt = con->prepareStatement("SELECT * FROM movies WHERE title LIKE ? LIMIT 1");
+    p_stmt = con->prepareStatement("SELECT * FROM movies WHERE title LIKE ? LIMIT 1;");
     p_stmt->setString(1, title);
     res = p_stmt->executeQuery();
     if (res->next()) {
@@ -83,65 +72,71 @@ int main(int argc, char *argv[]) {
     }      
 
     /* get the tags and genres for the input movie and create a Movie object for it */
-    // tags = retrieve_tags(con, movieId);
+    tags = retrieve_tags(con, movieId);
     unique_ptr<Movie> input(new Movie(title, genres, retrieve_tags(con, movieId)));
     vector<string> genre_list;    
     retrieve_genres(input->get_genres(), back_inserter(genre_list));
     sort(genre_list.begin(), genre_list.end());
 
     /* find which users liked the input movie and store their userIds */
-    p_stmt = con->prepareStatement("SELECT * FROM ratings JOIN movies ON ratings.movieId=movies.movieId WHERE title LIKE ? AND rating >= 4.0");
+    p_stmt = con->prepareStatement("SELECT * FROM ratings JOIN movies ON ratings.movieId=movies.movieId WHERE title LIKE ? AND rating >= 4.0 LIMIT 50;");
     p_stmt->setString(1, title);    
-    res = p_stmt->executeQuery();
-    
+    res = p_stmt->executeQuery();    
     while (res->next()) 
       ids.push_back(res->getInt("userId"));
     
     /* for each user who also liked the input movie, see what other movies they liked that are related to the input movie
      *   - currently just looks at genres, need to add a way that compares genres AND tags */
     for (auto a : ids) {
-      p_stmt = con->prepareStatement("SELECT * FROM ratings JOIN movies ON ratings.movieId=movies.movieId WHERE rating >= 4.0 AND userId=? AND title NOT LIKE ?");
-      p_stmt->setInt(1, a);
-      
-      /* complete the prepared statement, find the Jaccard Similarity index between the two sets of genres, and store it in recs */
+      p_stmt = con->prepareStatement("SELECT * FROM ratings JOIN movies ON ratings.movieId=movies.movieId WHERE rating >= 4.0 AND userId=? AND title NOT LIKE ?;");
+      p_stmt->setInt(1, a);    
       p_stmt->setString(2, title);
       res = p_stmt->executeQuery();      
+
+      /* for each movie, make a movie object, and base the recommendation based off how similar the genres are using the Jaccard Similarity Index */
       while (res->next()) {		
-	vector<string> genre_list_loop;      	
-	vector<string> genre_intersection;
-	vector<string> genre_union;
+	vector<string> genre_list_loop, genre_intersection, genre_union;
 	unique_ptr<Movie> m(new Movie(res->getString("title"), res->getString("genres"), retrieve_tags(con, res->getInt("movieId"))));	
 	retrieve_genres(m->get_genres(), back_inserter(genre_list_loop));
 	sort(genre_list_loop.begin(), genre_list_loop.end());
 	set_intersection(genre_list.begin(), genre_list.end(), genre_list_loop.begin(), genre_list_loop.end(), back_inserter(genre_intersection));
 	set_union(genre_list.begin(), genre_list.end(), genre_list_loop.begin(), genre_list_loop.end(), back_inserter(genre_union));
-	if ((double) genre_intersection.size() / genre_union.size())
+	if (genre_union.size())
 	  recs.insert(pair<Movie, double>(*m, (double) genre_intersection.size() / genre_union.size())); 
       }
     }    
-      
 
-    /* the final step is to sort all movies based on how close their tags are to the input movies using Cosine Similarity */  
     /* for each recommendation, compare the tags */
-    for (auto s : recs) {
-      set<Tag, greater<Tag> > test_tags = s.first.get_tags();    
-      set<Tag, greater<Tag> > diffs;
-      set_join(tags.begin(), tags.end(), test_tags.begin(), test_tags.end(), inserter(tags, tags.begin()), greater<Tag>());
-      /* perform cosine similarity here 
-      *
-      *
-      * */
+    for (auto &s : recs) {
+      // set<Tag, greater<Tag> > test_tags = s.first.get_tags();    
+      // set<Tag, greater<Tag> > diffs;
+      // set_join(tags.begin(), tags.end(), test_tags.begin(), test_tags.end(), inserter(tags, tags.begin()), greater<Tag>());
       
+      /* for now, just does a quick Jaccard Similarity Index; this isn't ideal because it doesn't take Tag weights into consideration
+       * I imagine it'll still give decent results, but the cosine similarity will perform better 
+       */
+      set<Tag, greater<Tag> > test_tags = s.first.get_tags();     
+      vector<Tag> tag_intersection, tag_union; 
+      set_intersection(test_tags.begin(), test_tags.end(), tags.begin(), tags.end(), back_inserter(tag_intersection), greater<Tag>());
+      set_union(test_tags.begin(), test_tags.end(), tags.begin(), tags.end(), back_inserter(tag_union), greater<Tag>());
+      if (tag_union.size())
+	s.second += (double) tag_intersection.size() / (double) tag_union.size();      
+
+      /* PERFORM COSINE SIMILARITY HERE */
     }      
     
+    /* display results in ascending order */
     vector<pair<Movie, double> > movies;
     for (auto m : recs)
       movies.push_back(m);
     sort(movies.begin(), movies.end(), comp);
     for (auto m : movies)
-      cout << m.first << ": " << m.second << endl;
+      if (m.second > 0.5)
+	cout << m.first << ": " << m.second << endl;
+    
     if (!movies.size())
       cout << "Sorry, not enough data has been collected for this movie to accurately give recommendations" << endl;
+
     delete p_stmt;
     delete stmt;
     delete con;
@@ -157,6 +152,7 @@ int main(int argc, char *argv[]) {
     cout << " (MySQL error code: " << e.getErrorCode();
     cout << ", SQLState: " << e.getSQLState() << 
       " )" << endl;
+    return EXIT_FAILURE;
   }
 
   return EXIT_SUCCESS;

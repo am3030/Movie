@@ -68,7 +68,7 @@ std::set<Tag, std::greater<Tag> > retrieve_tags(sql::Connection *con, int movieI
   std::map<std::string, double> tag_counts;
   std::set<Tag, std::greater<Tag> > tags;  
   int total = 0;
-
+  
   try {
     p_stmt = con->prepareStatement("SELECT * FROM tags WHERE movieID=?");
     p_stmt->setInt(1, movieId);

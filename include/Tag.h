@@ -23,7 +23,9 @@ class Tag {
 
   const Tag& operator=(const Tag &rhs);
   bool operator>(const Tag &t) const;
+  bool operator<(const Tag &t) const;
   bool operator==(const Tag &t) const;
+  bool operator!=(const Tag &t) const;
   friend std::ostream &operator<<(std::ostream &sout, const Tag &t);
     
 };
