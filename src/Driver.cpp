@@ -32,6 +32,11 @@
 
 using namespace std;
 
+
+bool comp(pair<Movie, double> &a, pair<Movie, double>& b) {
+  return a.second < b.second;
+}
+
 int main(int argc, char *argv[]) {
   
   /* validate the number of command line arguments */
@@ -47,9 +52,9 @@ int main(int argc, char *argv[]) {
     sql::PreparedStatement *p_stmt;
     sql::ResultSet *res;    
 
-    map<Movie, int> recs; 
-    string genres = "%";
+    map<Movie, double> recs; 
     string title = argv[1];
+    string genres;
     vector<int> ids;    
     set<Tag, greater<Tag> > tags;
     int movieId = 0;
@@ -67,7 +72,7 @@ int main(int argc, char *argv[]) {
     res = p_stmt->executeQuery();
     if (res->next()) {
       title = res->getString("title");
-      genres += res->getString("genres");    
+      genres = res->getString("genres");    
       movieId = res->getInt("movieId");
     }
 
@@ -78,37 +83,40 @@ int main(int argc, char *argv[]) {
     }      
 
     /* get the tags and genres for the input movie and create a Movie object for it */
-    tags = retrieve_tags(con, movieId);
-    unique_ptr<Movie> input(new Movie(title, genres, tags));
-    vector<string> genre_list;
+    // tags = retrieve_tags(con, movieId);
+    unique_ptr<Movie> input(new Movie(title, genres, retrieve_tags(con, movieId)));
+    vector<string> genre_list;    
     retrieve_genres(input->get_genres(), back_inserter(genre_list));
-    
+    sort(genre_list.begin(), genre_list.end());
+
     /* find which users liked the input movie and store their userIds */
-    genres += "%";
     p_stmt = con->prepareStatement("SELECT * FROM ratings JOIN movies ON ratings.movieId=movies.movieId WHERE title LIKE ? AND rating >= 4.0");
     p_stmt->setString(1, title);    
     res = p_stmt->executeQuery();
     
     while (res->next()) 
       ids.push_back(res->getInt("userId"));
-
+    
     /* for each user who also liked the input movie, see what other movies they liked that are related to the input movie
      *   - currently just looks at genres, need to add a way that compares genres AND tags */
     for (auto a : ids) {
-      p_stmt = con->prepareStatement("SELECT * FROM ratings JOIN movies ON ratings.movieId=movies.movieId WHERE rating >= 4.0 AND userId=? AND genres LIKE ? AND title NOT LIKE ?");
+      p_stmt = con->prepareStatement("SELECT * FROM ratings JOIN movies ON ratings.movieId=movies.movieId WHERE rating >= 4.0 AND userId=? AND title NOT LIKE ?");
       p_stmt->setInt(1, a);
-
-      for (auto &c : genres)
-      	if (c == '|')
-      	  c = '%';
       
-      /* complete the prepared statement and adds it to the set of recommendations  */
-      p_stmt->setString(2, genres);
-      p_stmt->setString(3, title);
+      /* complete the prepared statement, find the Jaccard Similarity index between the two sets of genres, and store it in recs */
+      p_stmt->setString(2, title);
       res = p_stmt->executeQuery();      
-      while (res->next()) {	
-	unique_ptr<Movie> m(new Movie(res->getString("title"), res->getString("genres"), retrieve_tags(con, res->getInt("movieId"))));
-	if (!(recs.insert(pair<Movie, int>(*m, 1)).second)) recs[*m]++;			
+      while (res->next()) {		
+	vector<string> genre_list_loop;      	
+	vector<string> genre_intersection;
+	vector<string> genre_union;
+	unique_ptr<Movie> m(new Movie(res->getString("title"), res->getString("genres"), retrieve_tags(con, res->getInt("movieId"))));	
+	retrieve_genres(m->get_genres(), back_inserter(genre_list_loop));
+	sort(genre_list_loop.begin(), genre_list_loop.end());
+	set_intersection(genre_list.begin(), genre_list.end(), genre_list_loop.begin(), genre_list_loop.end(), back_inserter(genre_intersection));
+	set_union(genre_list.begin(), genre_list.end(), genre_list_loop.begin(), genre_list_loop.end(), back_inserter(genre_union));
+	if ((double) genre_intersection.size() / genre_union.size())
+	  recs.insert(pair<Movie, double>(*m, (double) genre_intersection.size() / genre_union.size())); 
       }
     }    
       
@@ -119,12 +127,21 @@ int main(int argc, char *argv[]) {
       set<Tag, greater<Tag> > test_tags = s.first.get_tags();    
       set<Tag, greater<Tag> > diffs;
       set_join(tags.begin(), tags.end(), test_tags.begin(), test_tags.end(), inserter(tags, tags.begin()), greater<Tag>());
-      /* perform cosine similarity here */
+      /* perform cosine similarity here 
+      *
+      *
+      * */
+      
     }      
-          
-     for (auto m : recs)
-      cout << m.first << ": " << m.second << endl;
     
+    vector<pair<Movie, double> > movies;
+    for (auto m : recs)
+      movies.push_back(m);
+    sort(movies.begin(), movies.end(), comp);
+    for (auto m : movies)
+      cout << m.first << ": " << m.second << endl;
+    if (!movies.size())
+      cout << "Sorry, not enough data has been collected for this movie to accurately give recommendations" << endl;
     delete p_stmt;
     delete stmt;
     delete con;
