@@ -73,7 +73,7 @@ int main(int argc, char *argv[]) {
 
     /* get the tags and genres for the input movie and create a Movie object for it */
     tags = retrieve_tags(con, movieId);
-    unique_ptr<Movie> input(new Movie(title, genres, retrieve_tags(con, movieId)));
+    unique_ptr<Movie> input(new Movie(title, genres, tags));
     vector<string> genre_list;    
     retrieve_genres(input->get_genres(), back_inserter(genre_list));
     sort(genre_list.begin(), genre_list.end());
