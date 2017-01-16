@@ -16,6 +16,8 @@
  *************************************************************/
 
 #include "../include/driver_functions.h"
+#define TAG_WEIGHT 0.4
+#define GENRE_WEIGHT 0.6
 
 using namespace std;
 
@@ -102,7 +104,7 @@ int main(int argc, char *argv[]) {
 	set_intersection(genre_list.begin(), genre_list.end(), genre_list_loop.begin(), genre_list_loop.end(), back_inserter(genre_intersection));
 	set_union(genre_list.begin(), genre_list.end(), genre_list_loop.begin(), genre_list_loop.end(), back_inserter(genre_union));
 	if (genre_union.size())
-	  recs.insert(pair<Movie, double>(*m, (double) genre_intersection.size() / genre_union.size())); 
+	  recs.insert(pair<Movie, double>(*m, GENRE_WEIGHT * (double) genre_intersection.size() / genre_union.size())); 
       }
     }    
 
@@ -117,11 +119,17 @@ int main(int argc, char *argv[]) {
        */
       set<Tag, greater<Tag> > test_tags = s.first.get_tags();     
       vector<Tag> tag_intersection, tag_union; 
+      double weighted_union_sum = 0;
+      double weighted_intersection_sum = 0;            
       set_intersection(test_tags.begin(), test_tags.end(), tags.begin(), tags.end(), back_inserter(tag_intersection), greater<Tag>());
       set_union(test_tags.begin(), test_tags.end(), tags.begin(), tags.end(), back_inserter(tag_union), greater<Tag>());
+      for (auto a : tag_intersection)
+	weighted_intersection_sum += a.get_weight();
+      for (auto b : tag_union)
+	weighted_union_sum += b.get_weight();      
       if (tag_union.size())
-	s.second += (double) tag_intersection.size() / (double) tag_union.size();      
-
+	s.second += TAG_WEIGHT * weighted_intersection_sum / weighted_union_sum;
+      // s.second += 0.25 * (double) tag_intersection.size() / (double) tag_union.size();      
       /* PERFORM COSINE SIMILARITY HERE */
     }      
     
@@ -132,7 +140,7 @@ int main(int argc, char *argv[]) {
     sort(movies.begin(), movies.end(), comp);
     for (auto m : movies)
       if (m.second > 0.5)
-	cout << m.first << ": " << m.second << endl;
+	cout << m.first << ": " << m.second * 5 << endl;
     
     if (!movies.size())
       cout << "Sorry, not enough data has been collected for this movie to accurately give recommendations" << endl;

@@ -11,6 +11,13 @@ Tag::Tag(std::string tag, double weight = 0.0) :
   m_tag(tag),
   m_weight(weight) {/**/}
 
+std::string Tag::get_tag() const {
+  return m_tag;
+}
+
+double Tag::get_weight() const {
+  return m_weight;
+}
 const Tag& Tag::operator=(const Tag &rhs) {
   if (this != &rhs) {
     m_tag = rhs.m_tag;
@@ -41,3 +48,4 @@ std::ostream &operator<<(std::ostream &sout, const Tag &t) {
   sout << t.m_weight;
   return sout;
 }
+

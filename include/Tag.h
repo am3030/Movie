@@ -20,6 +20,9 @@ class Tag {
  public:
   Tag();
   Tag(std::string tag, double weight);
+  
+  std::string get_tag() const;
+  double get_weight() const;
 
   const Tag& operator=(const Tag &rhs);
   bool operator>(const Tag &t) const;
